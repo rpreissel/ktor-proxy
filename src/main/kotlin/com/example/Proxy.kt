@@ -15,6 +15,9 @@ import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
+import java.time.Duration
+import java.util.UUID
+import kotlin.time.Duration.Companion.hours
 
 
 fun String.bla(i: Int): String {
@@ -30,11 +33,13 @@ fun main() {
         val secretEncryptKey = hex("00112233445566778899aabbccddeeff")
         val secretSignKey = hex("6819b57a326945c1968f45236589")
 
-        data class AuthData(val count: Double = Math.random())
+        data class AuthData(val accessToken: String = UUID.randomUUID().toString())
         install(Sessions) {
             cookie<AuthData>("AUTHDATA") {
                 cookie.extensions["SameSite"] = "strict"
-                //transform(SessionTransportTransformerEncrypt(secretEncryptKey, secretSignKey))
+                cookie.httpOnly=true
+                cookie.maxAge = 1.hours
+                transform(SessionTransportTransformerEncrypt(secretEncryptKey, secretSignKey))
             }
         }
 
@@ -57,6 +62,12 @@ fun main() {
 
             route("/*") {
                 handle {
+                    val authData = call.sessions.get<AuthData>()
+                    if(authData == null) {
+                        call.respondText("AccessToken missing",status = HttpStatusCode.Unauthorized)
+                        return@handle
+                    }
+
                     val channel: ByteReadChannel = call.request.receiveChannel()
                     val size = channel.availableForRead
                     val byteArray: ByteArray = ByteArray(size)
@@ -75,6 +86,7 @@ fun main() {
                                             HttpHeaders.ContentLength, ignoreCase = true
                                         ) && !key.equals(HttpHeaders.Host, ignoreCase = true)
                                     })
+                                    set(HttpHeaders.Authorization, "Bearer ${authData.accessToken}")
                                 }
                                 if (call.request.httpMethod.equals(HttpMethod.Post)) {
                                     setBody(ByteArrayContent(byteArray, call.request.contentType()))

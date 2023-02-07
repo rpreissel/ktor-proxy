@@ -23,7 +23,8 @@ fun main() {
         routing {
             route("/*") {
                 handle {
-                    call.respondText("Ich bin das Backend ${call.request.uri} ${call.request.httpMethod}")
+                    val authorization = call.request.headers[HttpHeaders.Authorization]
+                    call.respondText("Ich bin das Backend ${call.request.uri} ${call.request.httpMethod} $authorization")
                 }
             }
 
